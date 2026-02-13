@@ -1,14 +1,16 @@
 /* ═══════════════════════════════════════════════════════════════════
    offchat — Chat Room Logic
-   WebSocket connection + E2E encryption + UI management
+   WebSocket + E2E encryption + file sharing
    ═══════════════════════════════════════════════════════════════════ */
 
-import { importKey, encrypt, decrypt } from './crypto.js';
+import { importKey, encrypt, decrypt, encryptFile, decryptFile } from './crypto.js';
+
+// ─── Constants ───────────────────────────────────────────────────────
+const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
 
 // ─── Extract room info from URL ──────────────────────────────────────
 const roomName = decodeURIComponent(location.pathname.slice(1));
 
-// Read hash — retry to handle edge cases where hash isn't ready
 function getKeyFragment() {
     const raw = window.location.hash;
     return raw ? raw.slice(1) : '';
@@ -26,6 +28,8 @@ const roomNameEl = document.getElementById('room-name');
 const copyLinkBtn = document.getElementById('copy-link');
 const errorOverlay = document.getElementById('error-overlay');
 const emptyState = document.querySelector('.messages__empty');
+const fileInput = document.getElementById('file-input');
+const fileBtn = document.getElementById('file-btn');
 
 // Set room name in header
 roomNameEl.textContent = roomName;
@@ -37,7 +41,6 @@ if (!keyFragment) {
     throw new Error('[offchat] no encryption key in URL fragment');
 }
 
-// Hide error overlay explicitly (in case it was shown)
 errorOverlay.hidden = true;
 
 // ─── Import encryption key ──────────────────────────────────────────
@@ -94,6 +97,17 @@ ws.addEventListener('message', async (event) => {
             }
             break;
 
+        case 'file':
+            try {
+                const metaJson = await decrypt(cryptoKey, data.meta, data.metaIv);
+                const meta = JSON.parse(metaJson);
+                const fileBuffer = await decryptFile(cryptoKey, data.data, data.dataIv);
+                addFileMessage(data.codename, meta, fileBuffer, data.timestamp);
+            } catch {
+                addSystemMessage('⚠ file decryption failed');
+            }
+            break;
+
         case 'destroyed':
             addSystemMessage('room destroyed — all data purged');
             inputEl.disabled = true;
@@ -111,7 +125,7 @@ ws.addEventListener('error', () => {
     addSystemMessage('⚠ connection error');
 });
 
-// ─── Send Message ────────────────────────────────────────────────────
+// ─── Send Text Message ───────────────────────────────────────────────
 inputEl.addEventListener('keydown', async (e) => {
     if (e.key !== 'Enter') return;
 
@@ -126,9 +140,66 @@ inputEl.addEventListener('keydown', async (e) => {
         iv,
     }));
 
-    // Display own message locally
     addMessage(myCodename, text, Date.now(), true);
     inputEl.value = '';
+});
+
+// ─── File Upload ─────────────────────────────────────────────────────
+fileBtn.addEventListener('click', () => {
+    if (ws.readyState !== WebSocket.OPEN) return;
+    fileInput.click();
+});
+
+fileInput.addEventListener('change', async () => {
+    const file = fileInput.files?.[0];
+    if (!file) return;
+
+    // Reset input so same file can be re-selected
+    fileInput.value = '';
+
+    // Size check
+    if (file.size > MAX_FILE_SIZE) {
+        showToast(`file too large — max ${MAX_FILE_SIZE / 1024 / 1024}MB`);
+        return;
+    }
+
+    // Show uploading state
+    fileBtn.classList.add('uploading');
+    addSystemMessage(`encrypting ${file.name}...`);
+
+    try {
+        // Read file
+        const arrayBuffer = await file.arrayBuffer();
+
+        // Encrypt file data
+        const { encrypted: encData, iv: dataIv } = await encryptFile(cryptoKey, arrayBuffer);
+
+        // Encrypt metadata (name, type, size — server sees NOTHING)
+        const metaStr = JSON.stringify({
+            name: file.name,
+            type: file.type || 'application/octet-stream',
+            size: file.size,
+        });
+        const { encrypted: encMeta, iv: metaIv } = await encrypt(cryptoKey, metaStr);
+
+        // Send
+        ws.send(JSON.stringify({
+            type: 'file',
+            data: encData,
+            dataIv,
+            meta: encMeta,
+            metaIv,
+        }));
+
+        // Show locally
+        const meta = { name: file.name, type: file.type, size: file.size };
+        addFileMessage(myCodename, meta, arrayBuffer, Date.now(), true);
+
+    } catch (err) {
+        addSystemMessage(`⚠ failed to send file: ${err.message}`);
+    } finally {
+        fileBtn.classList.remove('uploading');
+    }
 });
 
 // ─── Copy Link ───────────────────────────────────────────────────────
@@ -150,6 +221,22 @@ function clearEmptyState() {
         emptyState.remove();
         hasMessages = true;
     }
+}
+
+function formatSize(bytes) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getFileIcon(type) {
+    if (type.startsWith('image/')) return '🖼';
+    if (type.startsWith('video/')) return '🎥';
+    if (type.startsWith('audio/')) return '🎵';
+    if (type.includes('pdf')) return '📄';
+    if (type.includes('zip') || type.includes('rar') || type.includes('tar') || type.includes('7z')) return '📦';
+    if (type.includes('text') || type.includes('json') || type.includes('xml')) return '📝';
+    return '📎';
 }
 
 function addMessage(codename, text, timestamp, isSelf = false) {
@@ -175,9 +262,86 @@ function addMessage(codename, text, timestamp, isSelf = false) {
 
     const textSpan = document.createElement('span');
     textSpan.className = 'msg-text';
-    textSpan.textContent = text; // textContent = safe from XSS
+    textSpan.textContent = text;
 
     el.append(timeSpan, nameSpan, textSpan);
+    messagesEl.appendChild(el);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function addFileMessage(codename, meta, fileBuffer, timestamp, isSelf = false) {
+    clearEmptyState();
+
+    const el = document.createElement('div');
+    el.className = `message file-msg${isSelf ? ' self' : ''}`;
+
+    const time = new Date(timestamp).toLocaleTimeString('en-US', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+    });
+
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'msg-time';
+    timeSpan.textContent = time;
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = `msg-name${isSelf ? ' self' : ''}`;
+    nameSpan.textContent = codename;
+
+    // File card
+    const card = document.createElement('div');
+    card.className = 'file-card';
+
+    const icon = document.createElement('span');
+    icon.className = 'file-icon';
+    icon.textContent = getFileIcon(meta.type || '');
+
+    const info = document.createElement('div');
+    info.className = 'file-info';
+
+    const fileName = document.createElement('span');
+    fileName.className = 'file-name';
+    fileName.textContent = meta.name;
+
+    const fileSize = document.createElement('span');
+    fileSize.className = 'file-size';
+    fileSize.textContent = formatSize(meta.size);
+
+    info.append(fileName, fileSize);
+
+    // Download button
+    const dlBtn = document.createElement('button');
+    dlBtn.className = 'file-download';
+    dlBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M8 2v8M4 7l4 4 4-4M3 13h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`;
+    dlBtn.title = 'Download';
+
+    dlBtn.addEventListener('click', () => {
+        const blob = new Blob([fileBuffer], { type: meta.type || 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = meta.name;
+        a.click();
+        URL.revokeObjectURL(url);
+    });
+
+    card.append(icon, info, dlBtn);
+
+    // Image preview for images
+    if (meta.type?.startsWith('image/')) {
+        const preview = document.createElement('img');
+        preview.className = 'file-preview';
+        const blob = new Blob([fileBuffer], { type: meta.type });
+        preview.src = URL.createObjectURL(blob);
+        preview.alt = meta.name;
+        card.appendChild(preview);
+    }
+
+    el.append(timeSpan, nameSpan, card);
     messagesEl.appendChild(el);
     messagesEl.scrollTop = messagesEl.scrollHeight;
 }
@@ -220,7 +384,6 @@ function startTimer(expiresAt) {
 
         timerEl.textContent = `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
 
-        // Urgency classes
         if (remaining < 60_000) {
             timerEl.classList.remove('warning');
             timerEl.classList.add('critical');

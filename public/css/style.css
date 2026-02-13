@@ -48,7 +48,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
-  font-size: 13px;
+  font-size: 17px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -77,7 +77,7 @@ a {
 }
 
 ::-webkit-scrollbar {
-  width: 4px;
+  width: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -146,7 +146,7 @@ a {
 }
 
 .logo {
-  font-size: clamp(2.4rem, 8vw, 3.6rem);
+  font-size: clamp(3.2rem, 10vw, 5rem);
   font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1;
@@ -164,7 +164,7 @@ a {
 }
 
 .tagline {
-  font-size: 0.75rem;
+  font-size: 1rem;
   font-weight: 300;
   color: var(--text-muted);
   letter-spacing: 0.15em;
@@ -176,9 +176,9 @@ a {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   width: 100%;
-  max-width: 420px;
+  max-width: 540px;
   animation: fadeInUp 0.6s ease-out 0.1s both;
 }
 
@@ -189,8 +189,8 @@ a {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 0 4px 0 16px;
-  height: 48px;
+  padding: 0 6px 0 20px;
+  height: 64px;
   transition:
     border-color var(--transition),
     box-shadow var(--transition);
@@ -229,9 +229,9 @@ a {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 6px;
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
   color: var(--text-dim);
   cursor: pointer;
   transition: all var(--transition);
@@ -249,19 +249,19 @@ a {
 }
 
 .input-hint {
-  font-size: 0.7rem;
+  font-size: 0.85rem;
   color: var(--text-dim);
   letter-spacing: 0.04em;
 }
 
 .input-hint kbd {
   display: inline-block;
-  padding: 1px 6px;
+  padding: 2px 8px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   font-family: inherit;
-  font-size: 0.65rem;
+  font-size: 0.8rem;
   color: var(--text-muted);
 }
 
@@ -277,8 +277,8 @@ a {
 .footer-info {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 0.72rem;
+  gap: 10px;
+  font-size: 0.95rem;
   color: var(--text-muted);
 }
 
@@ -288,24 +288,24 @@ a {
 }
 
 .blink-dot {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: var(--accent);
   animation: blink 2s ease-in-out infinite;
-  box-shadow: 0 0 6px var(--accent-glow);
+  box-shadow: 0 0 8px var(--accent-glow);
 }
 
 .footer-badges {
   display: flex;
-  gap: 6px;
+  gap: 8px;
 }
 
 .badge {
-  font-size: 0.6rem;
+  font-size: 0.78rem;
   font-weight: 500;
   letter-spacing: 0.06em;
-  padding: 3px 8px;
+  padding: 5px 12px;
   border-radius: var(--radius-sm);
   background: var(--accent-ghost);
   color: var(--accent);
@@ -328,8 +328,8 @@ a {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
-  height: 44px;
+  padding: 0 24px;
+  height: 58px;
   border-bottom: 1px solid var(--border);
   background: rgba(6, 6, 8, 0.85);
   backdrop-filter: blur(12px);
@@ -341,11 +341,11 @@ a {
 .header-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
 .logo-sm {
-  font-size: 0.8rem;
+  font-size: 1.05rem;
   font-weight: 500;
   color: var(--text-muted);
 }
@@ -366,15 +366,15 @@ a {
 .room-id {
   color: var(--text);
   font-weight: 400;
-  font-size: 0.8rem;
+  font-size: 1.05rem;
 }
 
 .btn-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   border-radius: var(--radius-sm);
   color: var(--text-muted);
   cursor: pointer;
@@ -393,8 +393,8 @@ a {
 .header-meta {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 0.75rem;
+  gap: 10px;
+  font-size: 1rem;
 }
 
 .presence {
@@ -405,11 +405,11 @@ a {
 }
 
 .presence-dot {
-  width: 5px;
-  height: 5px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--accent);
-  box-shadow: 0 0 6px var(--accent-glow);
+  box-shadow: 0 0 8px var(--accent-glow);
   animation: pulse 3s ease-in-out infinite;
 }
 
@@ -417,7 +417,7 @@ a {
   color: var(--text-muted);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
-  font-size: 0.75rem;
+  font-size: 1rem;
 }
 
 .timer.warning {
@@ -432,12 +432,12 @@ a {
 .encryption-badge {
   display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: 0.6rem;
+  gap: 5px;
+  font-size: 0.8rem;
   font-weight: 500;
   color: var(--accent);
   opacity: 0.6;
-  padding: 2px 6px;
+  padding: 4px 10px;
   border-radius: var(--radius-sm);
   background: var(--accent-ghost);
 }
@@ -447,10 +447,10 @@ a {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 16px;
+  padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
 .messages__empty {
@@ -459,14 +459,14 @@ a {
   align-items: center;
   justify-content: center;
   flex: 1;
-  gap: 6px;
-  font-size: 0.75rem;
+  gap: 8px;
+  font-size: 1rem;
   color: var(--text-dim);
   text-align: center;
 }
 
 .messages__empty .dim {
-  font-size: 0.65rem;
+  font-size: 0.85rem;
   opacity: 0.5;
 }
 
@@ -474,15 +474,15 @@ a {
 .message {
   display: flex;
   align-items: baseline;
-  gap: 8px;
-  padding: 3px 0;
-  font-size: 0.8rem;
+  gap: 12px;
+  padding: 5px 0;
+  font-size: 1.05rem;
   animation: msgIn 0.2s ease-out;
 }
 
 .msg-time {
   color: var(--text-dim);
-  font-size: 0.65rem;
+  font-size: 0.85rem;
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
 }
@@ -491,7 +491,7 @@ a {
   color: var(--accent);
   font-weight: 500;
   flex-shrink: 0;
-  font-size: 0.75rem;
+  font-size: 1rem;
 }
 
 .msg-name.self {
@@ -503,6 +503,95 @@ a {
   word-break: break-word;
 }
 
+/* ─── File Messages ───────────────────────────────────────────────── */
+.file-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  min-width: 220px;
+  max-width: 400px;
+  flex-wrap: wrap;
+  transition: border-color var(--transition);
+}
+
+.file-card:hover {
+  border-color: var(--border-focus);
+}
+
+.file-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.file-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.file-name {
+  color: var(--text-bright);
+  font-size: 0.9rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-size {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.file-download {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  cursor: pointer;
+  transition: all var(--transition);
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid var(--border);
+}
+
+.file-download:hover {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+}
+
+.file-preview {
+  width: 100%;
+  max-height: 200px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  margin-top: 8px;
+  opacity: 0.9;
+}
+
+.file-preview:hover {
+  opacity: 1;
+}
+
+/* File upload button */
+.btn-file {
+  flex-shrink: 0;
+}
+
+.btn-file.uploading {
+  animation: pulse 1s ease-in-out infinite;
+  color: var(--accent);
+}
+
 /* System messages */
 .message.system {
   gap: 0;
@@ -510,7 +599,7 @@ a {
 
 .msg-system {
   color: var(--text-dim);
-  font-size: 0.7rem;
+  font-size: 0.9rem;
   font-style: italic;
 }
 
@@ -518,8 +607,8 @@ a {
 .chat-footer {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
+  gap: 12px;
+  padding: 18px 24px;
   border-top: 1px solid var(--border);
   background: rgba(6, 6, 8, 0.85);
   backdrop-filter: blur(12px);
@@ -530,7 +619,7 @@ a {
 .my-codename {
   color: var(--accent);
   font-weight: 500;
-  font-size: 0.75rem;
+  font-size: 1rem;
   flex-shrink: 0;
   opacity: 0.7;
 }
@@ -579,28 +668,28 @@ a {
   text-align: center;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  max-width: 360px;
-  padding: 32px;
+  gap: 16px;
+  max-width: 460px;
+  padding: 40px;
 }
 
 .error-box h2 {
-  font-size: 1rem;
+  font-size: 1.3rem;
   font-weight: 500;
   color: var(--danger);
 }
 
 .error-box p {
-  font-size: 0.78rem;
+  font-size: 1rem;
   color: var(--text-muted);
   line-height: 1.6;
 }
 
 .btn-back {
   display: inline-block;
-  margin-top: 8px;
-  padding: 8px 20px;
-  font-size: 0.75rem;
+  margin-top: 10px;
+  padding: 12px 28px;
+  font-size: 1rem;
   color: var(--accent);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -716,14 +805,14 @@ a {
 /* ─── Toast Notification ──────────────────────────────────────────── */
 .toast {
   position: fixed;
-  bottom: 80px;
+  bottom: 90px;
   left: 50%;
   transform: translateX(-50%) translateY(8px);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 8px 16px;
-  font-size: 0.7rem;
+  padding: 12px 24px;
+  font-size: 0.95rem;
   color: var(--accent);
   opacity: 0;
   pointer-events: none;

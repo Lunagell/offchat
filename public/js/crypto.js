@@ -1,42 +1,37 @@
 /* ═══════════════════════════════════════════════════════════════════
    offchat — E2E Encryption Module
    AES-256-GCM via Web Crypto API
-   Key NEVER leaves the browser. Server is blind.
+   Key derived from room name — NEVER touches the server.
    ═══════════════════════════════════════════════════════════════════ */
 
-/**
- * Generate a new AES-256-GCM key
- * @returns {Promise<CryptoKey>}
- */
-export async function generateKey() {
-    return crypto.subtle.generateKey(
-        { name: 'AES-GCM', length: 256 },
-        true,
-        ['encrypt', 'decrypt'],
-    );
-}
+const SALT = 'offchat-e2e-v1'; // fixed salt for key derivation
+const ITERATIONS = 100_000;
 
 /**
- * Export CryptoKey → base64url string (for URL fragment)
- * @param {CryptoKey} key
- * @returns {Promise<string>}
- */
-export async function exportKey(key) {
-    const raw = await crypto.subtle.exportKey('raw', key);
-    const bytes = new Uint8Array(raw);
-    return uint8ToBase64url(bytes);
-}
-
-/**
- * Import base64url string → CryptoKey
- * @param {string} base64url
+ * Derive AES-256-GCM key from room name using PBKDF2
+ * Same room name → same key (both sides can encrypt/decrypt)
+ * @param {string} roomName
  * @returns {Promise<CryptoKey>}
  */
-export async function importKey(base64url) {
-    const raw = base64urlToUint8(base64url);
-    return crypto.subtle.importKey(
+export async function deriveKey(roomName) {
+    const encoder = new TextEncoder();
+
+    const keyMaterial = await crypto.subtle.importKey(
         'raw',
-        raw,
+        encoder.encode(roomName),
+        'PBKDF2',
+        false,
+        ['deriveKey'],
+    );
+
+    return crypto.subtle.deriveKey(
+        {
+            name: 'PBKDF2',
+            salt: encoder.encode(SALT),
+            iterations: ITERATIONS,
+            hash: 'SHA-256',
+        },
+        keyMaterial,
         { name: 'AES-GCM', length: 256 },
         false,
         ['encrypt', 'decrypt'],
@@ -85,6 +80,45 @@ export async function decrypt(key, encryptedB64, ivB64) {
     return new TextDecoder().decode(decrypted);
 }
 
+/**
+ * Encrypt binary file → { encrypted, iv } (both base64)
+ * @param {CryptoKey} key
+ * @param {ArrayBuffer} arrayBuffer
+ * @returns {Promise<{encrypted: string, iv: string}>}
+ */
+export async function encryptFile(key, arrayBuffer) {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+
+    const ciphertext = await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv },
+        key,
+        arrayBuffer,
+    );
+
+    return {
+        encrypted: uint8ToBase64(new Uint8Array(ciphertext)),
+        iv: uint8ToBase64(iv),
+    };
+}
+
+/**
+ * Decrypt → ArrayBuffer (for file download)
+ * @param {CryptoKey} key
+ * @param {string} encryptedB64
+ * @param {string} ivB64
+ * @returns {Promise<ArrayBuffer>}
+ */
+export async function decryptFile(key, encryptedB64, ivB64) {
+    const encrypted = base64ToUint8(encryptedB64);
+    const iv = base64ToUint8(ivB64);
+
+    return crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv },
+        key,
+        encrypted,
+    );
+}
+
 /* ─── Encoding Helpers ────────────────────────────────────────────── */
 
 function uint8ToBase64(bytes) {
@@ -98,16 +132,4 @@ function base64ToUint8(b64) {
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
     return bytes;
-}
-
-function uint8ToBase64url(bytes) {
-    return uint8ToBase64(bytes)
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=+$/, '');
-}
-
-function base64urlToUint8(b64url) {
-    const b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
-    return base64ToUint8(b64);
 }

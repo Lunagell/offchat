@@ -92,7 +92,7 @@ function setSecurityHeaders(res) {
     "font-src 'self' https://fonts.gstatic.com",
     "script-src 'self'",
     "connect-src 'self' ws: wss:",
-    "img-src 'self' data:",
+    "img-src 'self' data: blob:",
   ].join('; '));
 }
 
@@ -127,7 +127,8 @@ const server = createServer(async (req, res) => {
 });
 
 // ─── WebSocket Server ────────────────────────────────────────────────
-const wss = new WebSocketServer({ server });
+const MAX_PAYLOAD = 50 * 1024 * 1024; // 50MB for file transfers
+const wss = new WebSocketServer({ server, maxPayload: MAX_PAYLOAD });
 
 wss.on('connection', (ws, req) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
@@ -162,17 +163,30 @@ wss.on('connection', (ws, req) => {
   ws.on('message', (raw) => {
     try {
       const msg = JSON.parse(raw);
-      if (msg.type !== 'message') return;
-      if (!msg.encrypted || !msg.iv) return;
 
-      // Relay encrypted blob — server CANNOT read this
-      broadcast(room, {
-        type: 'message',
-        codename,
-        encrypted: msg.encrypted,
-        iv: msg.iv,
-        timestamp: Date.now(),
-      }, ws);
+      if (msg.type === 'message') {
+        if (!msg.encrypted || !msg.iv) return;
+        // Relay encrypted text — server CANNOT read this
+        broadcast(room, {
+          type: 'message',
+          codename,
+          encrypted: msg.encrypted,
+          iv: msg.iv,
+          timestamp: Date.now(),
+        }, ws);
+      } else if (msg.type === 'file') {
+        if (!msg.data || !msg.dataIv || !msg.meta || !msg.metaIv) return;
+        // Relay encrypted file — server sees NOTHING
+        broadcast(room, {
+          type: 'file',
+          codename,
+          data: msg.data,
+          dataIv: msg.dataIv,
+          meta: msg.meta,
+          metaIv: msg.metaIv,
+          timestamp: Date.now(),
+        }, ws);
+      }
     } catch {
       // silently drop malformed messages
     }
