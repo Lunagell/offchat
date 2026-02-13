@@ -1,22 +1,16 @@
 /* ═══════════════════════════════════════════════════════════════════
    offchat — Chat Room Logic
    WebSocket + E2E encryption + file sharing
+   Key derived from room name — URL is clean
    ═══════════════════════════════════════════════════════════════════ */
 
-import { importKey, encrypt, decrypt, encryptFile, decryptFile } from './crypto.js';
+import { deriveKey, encrypt, decrypt, encryptFile, decryptFile } from './crypto.js';
 
 // ─── Constants ───────────────────────────────────────────────────────
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
 
 // ─── Extract room info from URL ──────────────────────────────────────
 const roomName = decodeURIComponent(location.pathname.slice(1));
-
-function getKeyFragment() {
-    const raw = window.location.hash;
-    return raw ? raw.slice(1) : '';
-}
-
-const keyFragment = getKeyFragment();
 
 // ─── DOM References ──────────────────────────────────────────────────
 const messagesEl = document.getElementById('messages');
@@ -26,7 +20,6 @@ const participantsEl = document.getElementById('participants');
 const codenameEl = document.getElementById('codename');
 const roomNameEl = document.getElementById('room-name');
 const copyLinkBtn = document.getElementById('copy-link');
-const errorOverlay = document.getElementById('error-overlay');
 const emptyState = document.querySelector('.messages__empty');
 const fileInput = document.getElementById('file-input');
 const fileBtn = document.getElementById('file-btn');
@@ -34,24 +27,8 @@ const fileBtn = document.getElementById('file-btn');
 // Set room name in header
 roomNameEl.textContent = roomName;
 
-// ─── Validate encryption key ────────────────────────────────────────
-if (!keyFragment) {
-    errorOverlay.hidden = false;
-    inputEl.disabled = true;
-    throw new Error('[offchat] no encryption key in URL fragment');
-}
-
-errorOverlay.hidden = true;
-
-// ─── Import encryption key ──────────────────────────────────────────
-let cryptoKey;
-try {
-    cryptoKey = await importKey(keyFragment);
-} catch (err) {
-    errorOverlay.hidden = false;
-    inputEl.disabled = true;
-    throw new Error(`[offchat] invalid encryption key: ${err.message}`);
-}
+// ─── Derive encryption key from room name ────────────────────────────
+const cryptoKey = await deriveKey(roomName);
 
 // ─── State ───────────────────────────────────────────────────────────
 let myCodename = '';
@@ -154,27 +131,20 @@ fileInput.addEventListener('change', async () => {
     const file = fileInput.files?.[0];
     if (!file) return;
 
-    // Reset input so same file can be re-selected
     fileInput.value = '';
 
-    // Size check
     if (file.size > MAX_FILE_SIZE) {
         showToast(`file too large — max ${MAX_FILE_SIZE / 1024 / 1024}MB`);
         return;
     }
 
-    // Show uploading state
     fileBtn.classList.add('uploading');
     addSystemMessage(`encrypting ${file.name}...`);
 
     try {
-        // Read file
         const arrayBuffer = await file.arrayBuffer();
-
-        // Encrypt file data
         const { encrypted: encData, iv: dataIv } = await encryptFile(cryptoKey, arrayBuffer);
 
-        // Encrypt metadata (name, type, size — server sees NOTHING)
         const metaStr = JSON.stringify({
             name: file.name,
             type: file.type || 'application/octet-stream',
@@ -182,7 +152,6 @@ fileInput.addEventListener('change', async () => {
         });
         const { encrypted: encMeta, iv: metaIv } = await encrypt(cryptoKey, metaStr);
 
-        // Send
         ws.send(JSON.stringify({
             type: 'file',
             data: encData,
@@ -191,7 +160,6 @@ fileInput.addEventListener('change', async () => {
             metaIv,
         }));
 
-        // Show locally
         const meta = { name: file.name, type: file.type, size: file.size };
         addFileMessage(myCodename, meta, arrayBuffer, Date.now(), true);
 
@@ -290,7 +258,6 @@ function addFileMessage(codename, meta, fileBuffer, timestamp, isSelf = false) {
     nameSpan.className = `msg-name${isSelf ? ' self' : ''}`;
     nameSpan.textContent = codename;
 
-    // File card
     const card = document.createElement('div');
     card.className = 'file-card';
 
@@ -311,7 +278,6 @@ function addFileMessage(codename, meta, fileBuffer, timestamp, isSelf = false) {
 
     info.append(fileName, fileSize);
 
-    // Download button
     const dlBtn = document.createElement('button');
     dlBtn.className = 'file-download';
     dlBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -331,7 +297,6 @@ function addFileMessage(codename, meta, fileBuffer, timestamp, isSelf = false) {
 
     card.append(icon, info, dlBtn);
 
-    // Image preview for images
     if (meta.type?.startsWith('image/')) {
         const preview = document.createElement('img');
         preview.className = 'file-preview';
