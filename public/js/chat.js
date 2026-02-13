@@ -42,6 +42,22 @@ const typingText = document.getElementById('typing-text');
 // Destroy room
 const destroyBtn = document.getElementById('destroy-btn');
 
+destroyBtn.addEventListener('click', () => {
+    if (destroyBtn.classList.contains('confirming')) {
+        // Confirmed destroy
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'destroy' }));
+        }
+    } else {
+        // First click - show confirm state
+        destroyBtn.classList.add('confirming');
+        clearTimeout(destroyConfirmTimeout);
+        destroyConfirmTimeout = setTimeout(() => {
+            destroyBtn.classList.remove('confirming');
+        }, 3000);
+    }
+});
+
 // QR code
 const qrBtn = document.getElementById('qr-btn');
 const qrModal = document.getElementById('qr-modal');
@@ -146,6 +162,23 @@ function updateTypingUI() {
 // ═══════════════════════════════════════════════════════════════════
 //  DRAG & DROP
 // ═══════════════════════════════════════════════════════════════════
+// Inject Reconnection Overlay
+const reconnectOverlay = document.createElement('div');
+reconnectOverlay.className = 'reconnect-overlay';
+reconnectOverlay.id = 'reconnect-overlay';
+reconnectOverlay.hidden = true;
+reconnectOverlay.innerHTML = `
+    <div class="reconnect-spinner"></div>
+    <div class="reconnect-text">connection lost</div>
+    <div class="reconnect-sub">reconnecting to secure server...</div>
+    <button id="manual-reconnect" class="btn-reconnect">try now</button>
+`;
+document.body.appendChild(reconnectOverlay);
+
+document.getElementById('manual-reconnect').addEventListener('click', () => {
+    reconnectDelay = 1000;
+    connect();
+});
 chatContainer.addEventListener('dragenter', (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -802,6 +835,22 @@ function updateConnectionStatus(status) {
     if (!connectionStatus) return;
     connectionStatus.className = 'connection-status ' + status;
     connectionStatus.title = status;
+
+    if (reconnectOverlay) {
+        if (status === 'connected') {
+            reconnectOverlay.hidden = true;
+            // Show toast if we just reconnected
+            if (document.querySelector('.msg-system.reconnecting')) {
+                showToast('secure connection restored');
+            }
+        } else if (status === 'disconnected') {
+            // Only show overlay if we are truly disconnected/reconnecting and not just closed efficiently
+            // But 'disconnected' state usually means we are trying to reconnect or failed.
+            if (!chatContainer.classList.contains('shattering')) {
+                reconnectOverlay.hidden = false;
+            }
+        }
+    }
 }
 
 function playNotification() {
