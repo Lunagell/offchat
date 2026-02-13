@@ -82,13 +82,19 @@ const storedPassword = sessionStorage.getItem(`offchat_pwd_${roomName}`);
 const storedTTL = sessionStorage.getItem(`offchat_ttl_${roomName}`) || '10';
 
 // ═══════════════════════════════════════════════════════════════════
-//  TAB NOTIFICATIONS
+//  TAB NOTIFICATIONS & RECONNECTION
 // ═══════════════════════════════════════════════════════════════════
 document.addEventListener('visibilitychange', () => {
     isTabHidden = document.hidden;
     if (!isTabHidden) {
         unreadCount = 0;
         document.title = 'offchat';
+
+        // Auto-reconnect if visible and disconnected
+        if (!ws || ws.readyState === WebSocket.CLOSED) {
+            reconnectDelay = 1000;
+            connect();
+        }
     }
 });
 
@@ -328,8 +334,11 @@ function shakeModal() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  INITIALIZE CHAT
+//  INITIALIZE CHAT & RECONNECTION
 // ═══════════════════════════════════════════════════════════════════
+let reconnectTimer = null;
+let reconnectDelay = 1000;
+
 async function initChat() {
     cryptoKey = await deriveKey(roomName, roomPassword);
 
@@ -337,119 +346,164 @@ async function initChat() {
         lockIndicator.hidden = false;
     }
 
+    loadHistory();
+    setInterval(updateTimestamps, 60000);
+
+    connect();
+}
+
+function connect() {
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+
+    updateConnectionStatus('reconnecting');
+
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const hasPassword = roomPassword ? '1' : '0';
-    const pwdHash = roomPassword ? await hashPassword(roomPassword) : '';
-    const ttl = storedTTL;
-    const wsUrl = `${protocol}//${location.host}?room=${encodeURIComponent(roomName)}&hasPassword=${hasPassword}&pwdHash=${encodeURIComponent(pwdHash)}&ttl=${ttl}`;
-    ws = new WebSocket(wsUrl);
 
-    ws.addEventListener('open', () => {
-        inputEl.focus();
-    });
+    hashPassword(roomPassword || '').then(pwdHash => {
+        const ttl = storedTTL;
+        const wsUrl = `${protocol}//${location.host}?room=${encodeURIComponent(roomName)}&hasPassword=${hasPassword}&pwdHash=${encodeURIComponent(pwdHash)}&ttl=${ttl}`;
 
-    ws.addEventListener('message', async (event) => {
-        const data = JSON.parse(event.data);
-
-        switch (data.type) {
-            case 'init':
-                myCodename = data.codename;
-                codenameEl.textContent = data.codename;
-                participantsEl.textContent = data.participants;
-                startTimer(data.expiresAt);
-                addSystemMessage(`you joined as ${data.codename}`);
-                if (data.hasPassword) {
-                    lockIndicator.hidden = false;
-                }
-                break;
-
-            case 'join':
-                participantsEl.textContent = data.participants;
-                addSystemMessage(`${data.codename} connected`);
-                notifyUnread();
-                break;
-
-            case 'leave':
-                participantsEl.textContent = data.participants;
-                addSystemMessage(`${data.codename} disconnected`);
-                // Clean up typing state for this user
-                if (typingUsers.has(data.codename)) {
-                    clearTimeout(typingUsers.get(data.codename));
-                    typingUsers.delete(data.codename);
-                    updateTypingUI();
-                }
-                break;
-
-            case 'message':
-                try {
-                    const plaintext = await decrypt(cryptoKey, data.encrypted, data.iv);
-                    addMessage(data.codename, plaintext, data.timestamp);
-                    notifyUnread();
-                } catch {
-                    addSystemMessage('⚠ decryption failed — wrong password?');
-                }
-                // Clear typing state for sender
-                if (typingUsers.has(data.codename)) {
-                    clearTimeout(typingUsers.get(data.codename));
-                    typingUsers.delete(data.codename);
-                    updateTypingUI();
-                }
-                break;
-
-            case 'file':
-                try {
-                    const metaJson = await decrypt(cryptoKey, data.meta, data.metaIv);
-                    const meta = JSON.parse(metaJson);
-                    const fileBuffer = await decryptFile(cryptoKey, data.data, data.dataIv);
-                    addFileMessage(data.codename, meta, fileBuffer, data.timestamp);
-                    notifyUnread();
-                } catch {
-                    addSystemMessage('⚠ file decryption failed — wrong password?');
-                }
-                break;
-
-            case 'typing':
-                showTyping(data.codename);
-                break;
-
-            case 'auth_error':
-                showPasswordModal();
-                modalError.hidden = false;
-                modalError.textContent = 'wrong password — try again';
-                shakeModal();
-                sessionStorage.removeItem(`offchat_pwd_${roomName}`);
-                ws.close();
-                break;
-
-            case 'destroyed':
-                if (data.manual) {
-                    // Manual destroy — play shatter effect
-                    shatterAndRedirect();
-                } else {
-                    // Timer expiry
-                    addSystemMessage('room destroyed — all data purged');
-                    inputEl.disabled = true;
-                    inputEl.placeholder = 'room expired';
-                }
-                break;
-        }
-    });
-
-    ws.addEventListener('close', (e) => {
-        if (e.code !== 4003) {
-            // Don't show "connection closed" if we're doing shatter animation
-            if (!chatContainer.classList.contains('shattering')) {
-                addSystemMessage('connection closed');
-                inputEl.disabled = true;
-            }
-        }
-    });
-
-    ws.addEventListener('error', () => {
-        addSystemMessage('⚠ connection error');
+        ws = new WebSocket(wsUrl);
+        ws.addEventListener('open', onOpen);
+        ws.addEventListener('message', onMessage);
+        ws.addEventListener('close', onClose);
+        ws.addEventListener('error', onError);
     });
 }
 
+function onOpen() {
+    inputEl.disabled = false;
+    inputEl.focus();
+    reconnectDelay = 1000;
+    updateConnectionStatus('connected');
+
+    const recMsg = document.querySelector('.msg-system.reconnecting');
+    if (recMsg) {
+        recMsg.remove();
+        addSystemMessage('connected');
+    }
+}
+
+async function onMessage(event) {
+    const data = JSON.parse(event.data);
+
+    switch (data.type) {
+        case 'init':
+            myCodename = data.codename;
+            codenameEl.textContent = data.codename;
+            participantsEl.textContent = data.participants;
+            startTimer(data.expiresAt);
+            if (!hasMessages) addSystemMessage(`you joined as ${data.codename}`);
+            if (data.hasPassword) {
+                lockIndicator.hidden = false;
+            }
+            break;
+
+        case 'join':
+            participantsEl.textContent = data.participants;
+            addSystemMessage(`${data.codename} connected`);
+            notifyUnread();
+            break;
+
+        case 'leave':
+            participantsEl.textContent = data.participants;
+            addSystemMessage(`${data.codename} disconnected`);
+            if (typingUsers.has(data.codename)) {
+                clearTimeout(typingUsers.get(data.codename));
+                typingUsers.delete(data.codename);
+                updateTypingUI();
+            }
+            break;
+
+        case 'message':
+            try {
+                const plaintext = await decrypt(cryptoKey, data.encrypted, data.iv);
+                addMessage(data.codename, plaintext, data.timestamp);
+                playNotification();
+                notifyUnread();
+            } catch {
+                addSystemMessage('⚠ decryption failed — wrong password?');
+            }
+            if (typingUsers.has(data.codename)) {
+                clearTimeout(typingUsers.get(data.codename));
+                typingUsers.delete(data.codename);
+                updateTypingUI();
+            }
+            break;
+
+        case 'file':
+            try {
+                const metaJson = await decrypt(cryptoKey, data.meta, data.metaIv);
+                const meta = JSON.parse(metaJson);
+                const fileBuffer = await decryptFile(cryptoKey, data.data, data.dataIv);
+                addFileMessage(data.codename, meta, fileBuffer, data.timestamp);
+                playNotification();
+                notifyUnread();
+            } catch {
+                addSystemMessage('⚠ file decryption failed — wrong password?');
+            }
+            break;
+
+        case 'typing':
+            showTyping(data.codename);
+            break;
+
+        case 'auth_error':
+            showPasswordModal();
+            modalError.hidden = false;
+            modalError.textContent = 'wrong password — try again';
+            shakeModal();
+            sessionStorage.removeItem(`offchat_pwd_${roomName}`);
+            // ws will be closed by server with 4003, which we handle in onClose
+            break;
+
+        case 'destroyed':
+            if (data.manual) {
+                shatterAndRedirect();
+            } else {
+                addSystemMessage('room destroyed — all data purged');
+                inputEl.disabled = true;
+                inputEl.placeholder = 'room expired';
+                updateConnectionStatus('disconnected');
+            }
+            break;
+    }
+}
+
+function onClose(e) {
+    updateConnectionStatus('disconnected');
+    if (e.code === 4003 || e.code === 4001) {
+        if (e.code === 4003 && !modalError.hidden) {
+            // Already showing modal
+        } else {
+            addSystemMessage('connection closed (fatal)');
+            inputEl.disabled = true;
+        }
+    } else {
+        if (!chatContainer.classList.contains('shattering')) {
+            if (!document.querySelector('.msg-system.reconnecting')) {
+                addSystemMessage('connection lost — reconnecting...', 'reconnecting');
+            }
+            inputEl.disabled = true;
+            scheduleReconnect();
+        }
+    }
+}
+
+function onError() {
+    // Error usually precedes close, so we rely on onClose for logic
+}
+
+function scheduleReconnect() {
+    if (reconnectTimer) return;
+
+    reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        reconnectDelay = Math.min(reconnectDelay * 2, 8000); // cap at 8s
+        connect();
+    }, reconnectDelay);
+}
 // ─── Hash password ───────────────────────────────────────────────────
 async function hashPassword(password) {
     const encoder = new TextEncoder();
@@ -579,20 +633,22 @@ function shouldAutoScroll() {
     return messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < threshold;
 }
 
-function addMessage(codename, text, timestamp, isSelf = false) {
+function addMessage(codename, text, timestamp, isSelf = false, fromHistory = false) {
+    if (!fromHistory) {
+        saveMessageToHistory({ type: 'text', codename, text, timestamp, isSelf });
+    }
+
     clearEmptyState();
     const doScroll = shouldAutoScroll();
 
     const el = document.createElement('div');
     el.className = `message${isSelf ? ' self' : ''}`;
 
-    const time = new Date(timestamp).toLocaleTimeString('en-US', {
-        hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit',
-    });
-
     const timeSpan = document.createElement('span');
     timeSpan.className = 'msg-time';
-    timeSpan.textContent = time;
+    timeSpan.dataset.timestamp = timestamp;
+    timeSpan.textContent = formatTimeRelative(timestamp);
+    timeSpan.title = new Date(timestamp).toLocaleTimeString();
 
     const nameSpan = document.createElement('span');
     nameSpan.className = `msg-name${isSelf ? ' self' : ''}`;
@@ -600,11 +656,11 @@ function addMessage(codename, text, timestamp, isSelf = false) {
 
     const textSpan = document.createElement('span');
     textSpan.className = 'msg-text';
-    textSpan.textContent = text;
+    textSpan.innerHTML = linkify(text);
 
     el.append(timeSpan, nameSpan, textSpan);
     messagesEl.appendChild(el);
-    if (doScroll || isSelf) messagesEl.scrollTop = messagesEl.scrollHeight;
+    if (doScroll || isSelf || fromHistory) messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
 function addFileMessage(codename, meta, fileBuffer, timestamp, isSelf = false) {
@@ -736,6 +792,96 @@ function startTimer(expiresAt) {
 
     tick();
 }
+
+//  QoL HELPERS
+// ═══════════════════════════════════════════════════════════════════
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+const connectionStatus = document.getElementById('connection-status');
+
+function updateConnectionStatus(status) {
+    if (!connectionStatus) return;
+    connectionStatus.className = 'connection-status ' + status;
+    connectionStatus.title = status;
+}
+
+function playNotification() {
+    if (document.hidden && audioCtx.state === 'suspended') audioCtx.resume();
+    if (audioCtx.state === 'suspended') return;
+
+    try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.15);
+    } catch (e) {
+        console.warn('Audio play failed', e);
+    }
+}
+
+function linkify(text) {
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    return text.replace(urlRegex, (url) => {
+        return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+    });
+}
+
+function formatTimeRelative(timestamp) {
+    const diff = Math.floor((Date.now() - timestamp) / 1000);
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return new Date(timestamp).toLocaleDateString();
+}
+
+function updateTimestamps() {
+    document.querySelectorAll('.msg-time').forEach(el => {
+        const ts = parseInt(el.dataset.timestamp);
+        if (ts) el.textContent = formatTimeRelative(ts);
+    });
+}
+
+function saveMessageToHistory(msg) {
+    try {
+        const history = JSON.parse(sessionStorage.getItem(`offchat_hist_${roomName}`) || '[]');
+        history.push(msg);
+        if (history.length > 50) history.shift();
+        sessionStorage.setItem(`offchat_hist_${roomName}`, JSON.stringify(history));
+    } catch (e) {
+        console.error('History save failed', e);
+    }
+}
+
+function loadHistory() {
+    try {
+        const history = JSON.parse(sessionStorage.getItem(`offchat_hist_${roomName}`) || '[]');
+        history.forEach(msg => {
+            if (msg.type === 'text') {
+                addMessage(msg.codename, msg.text, msg.timestamp, msg.isSelf, true);
+            }
+        });
+        setTimeout(() => {
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+        }, 10);
+    } catch (e) {
+        console.error('History load failed', e);
+    }
+}
+
+// Audio Unlock
+document.addEventListener('click', () => {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+}, { once: true });
+document.addEventListener('keydown', () => {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+}, { once: true });
 
 // ─── Start ───────────────────────────────────────────────────────────
 checkRoomAndConnect();

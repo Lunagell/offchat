@@ -1416,3 +1416,40 @@ a {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   QoL IMPROVEMENTS
+   ═══════════════════════════════════════════════════════════════════ */
+.connection-status {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent-glow);
+  transition: background-color 0.3s;
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+
+.connection-status.reconnecting {
+  background: var(--warning);
+  animation: blink 1s infinite;
+}
+
+.connection-status.disconnected {
+  background: var(--danger);
+  box-shadow: none;
+}
+
+.msg-text a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
+.msg-text a:hover {
+  text-decoration: none;
+  background: var(--accent-dim);
+  border-radius: 2px;
+}
