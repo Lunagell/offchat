@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════════════════════════════════════
    offchat — Chat Room Logic
-   WebSocket + E2E encryption + file sharing
-   Key derived from room name — URL is clean
+   WebSocket + E2E encryption + file sharing + password protection
+   + typing indicator + tab notifications + drag & drop + destroy + QR
    ═══════════════════════════════════════════════════════════════════ */
 
 import { deriveKey, encrypt, decrypt, encryptFile, decryptFile } from './crypto.js';
@@ -23,91 +23,452 @@ const copyLinkBtn = document.getElementById('copy-link');
 const emptyState = document.querySelector('.messages__empty');
 const fileInput = document.getElementById('file-input');
 const fileBtn = document.getElementById('file-btn');
+const lockIndicator = document.getElementById('lock-indicator');
+const chatContainer = document.getElementById('chat-container');
+
+// Password modal
+const passwordModal = document.getElementById('password-modal');
+const modalPasswordInput = document.getElementById('modal-password-input');
+const modalPasswordVisibility = document.getElementById('modal-password-visibility');
+const modalEyeOpen = document.getElementById('modal-eye-open');
+const modalEyeClosed = document.getElementById('modal-eye-closed');
+const modalSubmit = document.getElementById('modal-submit');
+const modalError = document.getElementById('modal-error');
+
+// Typing indicator
+const typingIndicator = document.getElementById('typing-indicator');
+const typingText = document.getElementById('typing-text');
+
+// Destroy room
+const destroyBtn = document.getElementById('destroy-btn');
+
+// QR code
+const qrBtn = document.getElementById('qr-btn');
+const qrModal = document.getElementById('qr-modal');
+const qrBackdrop = document.getElementById('qr-backdrop');
+const qrContainer = document.getElementById('qr-container');
+const qrUrl = document.getElementById('qr-url');
+const qrClose = document.getElementById('qr-close');
+
+// Drag & drop
+const dragOverlay = document.getElementById('drag-overlay');
 
 // Set room name in header
 roomNameEl.textContent = roomName;
 
-// ─── Derive encryption key from room name ────────────────────────────
-const cryptoKey = await deriveKey(roomName);
-
 // ─── State ───────────────────────────────────────────────────────────
 let myCodename = '';
 let hasMessages = false;
+let cryptoKey = null;
+let ws = null;
+let roomPassword = '';
 
-// ─── WebSocket Connection ────────────────────────────────────────────
-const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-const wsUrl = `${protocol}//${location.host}?room=${encodeURIComponent(roomName)}`;
-const ws = new WebSocket(wsUrl);
+// Typing state
+let lastTypingSent = 0;
+const typingUsers = new Map(); // codename → timeout
 
-ws.addEventListener('open', () => {
-    inputEl.focus();
-});
+// Tab notification state
+let unreadCount = 0;
+let isTabHidden = false;
 
-ws.addEventListener('message', async (event) => {
-    const data = JSON.parse(event.data);
+// Drag counter (needed because dragenter/dragleave fire on children)
+let dragCounter = 0;
 
-    switch (data.type) {
-        case 'init':
-            myCodename = data.codename;
-            codenameEl.textContent = data.codename;
-            participantsEl.textContent = data.participants;
-            startTimer(data.expiresAt);
-            addSystemMessage(`you joined as ${data.codename}`);
-            break;
+// Destroy confirm state
+let destroyConfirmTimeout = null;
 
-        case 'join':
-            participantsEl.textContent = data.participants;
-            addSystemMessage(`${data.codename} connected`);
-            break;
+// ─── Password & TTL from sessionStorage ──────────────────────────────
+const storedPassword = sessionStorage.getItem(`offchat_pwd_${roomName}`);
+const storedTTL = sessionStorage.getItem(`offchat_ttl_${roomName}`) || '10';
 
-        case 'leave':
-            participantsEl.textContent = data.participants;
-            addSystemMessage(`${data.codename} disconnected`);
-            break;
-
-        case 'message':
-            try {
-                const plaintext = await decrypt(cryptoKey, data.encrypted, data.iv);
-                addMessage(data.codename, plaintext, data.timestamp);
-            } catch {
-                addSystemMessage('⚠ decryption failed');
-            }
-            break;
-
-        case 'file':
-            try {
-                const metaJson = await decrypt(cryptoKey, data.meta, data.metaIv);
-                const meta = JSON.parse(metaJson);
-                const fileBuffer = await decryptFile(cryptoKey, data.data, data.dataIv);
-                addFileMessage(data.codename, meta, fileBuffer, data.timestamp);
-            } catch {
-                addSystemMessage('⚠ file decryption failed');
-            }
-            break;
-
-        case 'destroyed':
-            addSystemMessage('room destroyed — all data purged');
-            inputEl.disabled = true;
-            inputEl.placeholder = 'room expired';
-            break;
+// ═══════════════════════════════════════════════════════════════════
+//  TAB NOTIFICATIONS
+// ═══════════════════════════════════════════════════════════════════
+document.addEventListener('visibilitychange', () => {
+    isTabHidden = document.hidden;
+    if (!isTabHidden) {
+        unreadCount = 0;
+        document.title = 'offchat';
     }
 });
 
-ws.addEventListener('close', () => {
-    addSystemMessage('connection closed');
-    inputEl.disabled = true;
+function notifyUnread() {
+    if (isTabHidden) {
+        unreadCount++;
+        document.title = `(${unreadCount}) offchat`;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  TYPING INDICATOR
+// ═══════════════════════════════════════════════════════════════════
+function sendTyping() {
+    const now = Date.now();
+    if (now - lastTypingSent > 2000 && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'typing' }));
+        lastTypingSent = now;
+    }
+}
+
+function showTyping(codename) {
+    if (typingUsers.has(codename)) {
+        clearTimeout(typingUsers.get(codename));
+    }
+
+    const timeout = setTimeout(() => {
+        typingUsers.delete(codename);
+        updateTypingUI();
+    }, 3000);
+
+    typingUsers.set(codename, timeout);
+    updateTypingUI();
+}
+
+function updateTypingUI() {
+    const names = Array.from(typingUsers.keys());
+    if (names.length === 0) {
+        typingIndicator.hidden = true;
+    } else {
+        typingIndicator.hidden = false;
+        const text = names.length === 1
+            ? `${names[0]} is typing`
+            : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} are typing`;
+        typingText.textContent = text;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  DRAG & DROP
+// ═══════════════════════════════════════════════════════════════════
+chatContainer.addEventListener('dragenter', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter++;
+    if (dragCounter === 1) dragOverlay.hidden = false;
 });
 
-ws.addEventListener('error', () => {
-    addSystemMessage('⚠ connection error');
+chatContainer.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
 });
 
-// ─── Send Text Message ───────────────────────────────────────────────
+chatContainer.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter--;
+    if (dragCounter === 0) dragOverlay.hidden = true;
+});
+
+chatContainer.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter = 0;
+    dragOverlay.hidden = true;
+
+    const file = e.dataTransfer?.files?.[0];
+    if (file && ws && ws.readyState === WebSocket.OPEN) {
+        await handleFileUpload(file);
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════════
+//  DESTROY ROOM
+// ═══════════════════════════════════════════════════════════════════
+destroyBtn.addEventListener('click', () => {
+    if (destroyBtn.classList.contains('confirming')) {
+        clearTimeout(destroyConfirmTimeout);
+        destroyBtn.classList.remove('confirming');
+
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'destroy' }));
+        }
+    } else {
+        destroyBtn.classList.add('confirming');
+        destroyConfirmTimeout = setTimeout(() => {
+            destroyBtn.classList.remove('confirming');
+        }, 3000);
+    }
+});
+
+function shatterAndRedirect() {
+    // Create shatter overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'shatter-overlay';
+    document.body.appendChild(overlay);
+
+    // Flash effect
+    const flash = document.createElement('div');
+    flash.className = 'shatter-flash';
+    overlay.appendChild(flash);
+
+    // Create crack lines radiating from center
+    const cx = window.innerWidth / 2;
+    const cy = window.innerHeight / 2;
+    const numCracks = 20;
+    const maxLen = Math.hypot(window.innerWidth, window.innerHeight);
+
+    for (let i = 0; i < numCracks; i++) {
+        const crack = document.createElement('div');
+        crack.className = 'shatter-crack';
+        const angle = (360 / numCracks) * i + (Math.random() * 10 - 5);
+        crack.style.left = cx + 'px';
+        crack.style.top = cy + 'px';
+        crack.style.width = maxLen + 'px';
+        crack.style.setProperty('--angle', `${angle}deg`);
+        crack.style.animationDelay = `${i * 0.02}s`;
+        overlay.appendChild(crack);
+    }
+
+    // Distort page content
+    setTimeout(() => {
+        chatContainer.classList.add('shattering');
+    }, 150);
+
+    // Show destroyed text
+    setTimeout(() => {
+        const text = document.createElement('div');
+        text.className = 'shatter-text';
+        text.innerHTML = '<span>room destroyed</span><span class="shatter-sub">all data purged</span>';
+        overlay.appendChild(text);
+    }, 500);
+
+    // Redirect
+    setTimeout(() => {
+        location.href = '/';
+    }, 2000);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  QR CODE MODAL
+// ═══════════════════════════════════════════════════════════════════
+qrBtn.addEventListener('click', async () => {
+    qrModal.hidden = false;
+    qrUrl.textContent = location.href;
+
+    try {
+        const res = await fetch(`/api/qr?room=${encodeURIComponent(roomName)}`);
+        const svg = await res.text();
+        qrContainer.innerHTML = svg;
+    } catch {
+        qrContainer.textContent = 'failed to generate QR code';
+    }
+});
+
+qrClose.addEventListener('click', () => {
+    qrModal.hidden = true;
+});
+
+qrBackdrop.addEventListener('click', () => {
+    qrModal.hidden = true;
+});
+
+// ═══════════════════════════════════════════════════════════════════
+//  PASSWORD MODAL
+// ═══════════════════════════════════════════════════════════════════
+async function checkRoomAndConnect() {
+    try {
+        const res = await fetch(`/api/room-info?room=${encodeURIComponent(roomName)}`);
+        const info = await res.json();
+
+        if (info.hasPassword && !storedPassword) {
+            showPasswordModal();
+        } else {
+            roomPassword = storedPassword || '';
+            await initChat();
+        }
+    } catch {
+        roomPassword = storedPassword || '';
+        await initChat();
+    }
+}
+
+function showPasswordModal() {
+    passwordModal.hidden = false;
+    chatContainer.style.filter = 'blur(8px)';
+    chatContainer.style.pointerEvents = 'none';
+    modalPasswordInput.focus();
+}
+
+function hidePasswordModal() {
+    passwordModal.hidden = true;
+    chatContainer.style.filter = '';
+    chatContainer.style.pointerEvents = '';
+}
+
+modalPasswordVisibility.addEventListener('click', () => {
+    const isPassword = modalPasswordInput.type === 'password';
+    modalPasswordInput.type = isPassword ? 'text' : 'password';
+    modalEyeOpen.hidden = !isPassword;
+    modalEyeClosed.hidden = isPassword;
+});
+
+modalSubmit.addEventListener('click', async () => {
+    const pwd = modalPasswordInput.value;
+    if (!pwd) {
+        modalError.hidden = false;
+        modalError.textContent = 'please enter a password';
+        shakeModal();
+        return;
+    }
+
+    roomPassword = pwd;
+    sessionStorage.setItem(`offchat_pwd_${roomName}`, pwd);
+    hidePasswordModal();
+    await initChat();
+});
+
+modalPasswordInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') modalSubmit.click();
+});
+
+function shakeModal() {
+    const card = document.querySelector('.password-modal__card');
+    card.classList.add('shake');
+    setTimeout(() => card.classList.remove('shake'), 500);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  INITIALIZE CHAT
+// ═══════════════════════════════════════════════════════════════════
+async function initChat() {
+    cryptoKey = await deriveKey(roomName, roomPassword);
+
+    if (roomPassword) {
+        lockIndicator.hidden = false;
+    }
+
+    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const hasPassword = roomPassword ? '1' : '0';
+    const pwdHash = roomPassword ? await hashPassword(roomPassword) : '';
+    const ttl = storedTTL;
+    const wsUrl = `${protocol}//${location.host}?room=${encodeURIComponent(roomName)}&hasPassword=${hasPassword}&pwdHash=${encodeURIComponent(pwdHash)}&ttl=${ttl}`;
+    ws = new WebSocket(wsUrl);
+
+    ws.addEventListener('open', () => {
+        inputEl.focus();
+    });
+
+    ws.addEventListener('message', async (event) => {
+        const data = JSON.parse(event.data);
+
+        switch (data.type) {
+            case 'init':
+                myCodename = data.codename;
+                codenameEl.textContent = data.codename;
+                participantsEl.textContent = data.participants;
+                startTimer(data.expiresAt);
+                addSystemMessage(`you joined as ${data.codename}`);
+                if (data.hasPassword) {
+                    lockIndicator.hidden = false;
+                }
+                break;
+
+            case 'join':
+                participantsEl.textContent = data.participants;
+                addSystemMessage(`${data.codename} connected`);
+                notifyUnread();
+                break;
+
+            case 'leave':
+                participantsEl.textContent = data.participants;
+                addSystemMessage(`${data.codename} disconnected`);
+                // Clean up typing state for this user
+                if (typingUsers.has(data.codename)) {
+                    clearTimeout(typingUsers.get(data.codename));
+                    typingUsers.delete(data.codename);
+                    updateTypingUI();
+                }
+                break;
+
+            case 'message':
+                try {
+                    const plaintext = await decrypt(cryptoKey, data.encrypted, data.iv);
+                    addMessage(data.codename, plaintext, data.timestamp);
+                    notifyUnread();
+                } catch {
+                    addSystemMessage('⚠ decryption failed — wrong password?');
+                }
+                // Clear typing state for sender
+                if (typingUsers.has(data.codename)) {
+                    clearTimeout(typingUsers.get(data.codename));
+                    typingUsers.delete(data.codename);
+                    updateTypingUI();
+                }
+                break;
+
+            case 'file':
+                try {
+                    const metaJson = await decrypt(cryptoKey, data.meta, data.metaIv);
+                    const meta = JSON.parse(metaJson);
+                    const fileBuffer = await decryptFile(cryptoKey, data.data, data.dataIv);
+                    addFileMessage(data.codename, meta, fileBuffer, data.timestamp);
+                    notifyUnread();
+                } catch {
+                    addSystemMessage('⚠ file decryption failed — wrong password?');
+                }
+                break;
+
+            case 'typing':
+                showTyping(data.codename);
+                break;
+
+            case 'auth_error':
+                showPasswordModal();
+                modalError.hidden = false;
+                modalError.textContent = 'wrong password — try again';
+                shakeModal();
+                sessionStorage.removeItem(`offchat_pwd_${roomName}`);
+                ws.close();
+                break;
+
+            case 'destroyed':
+                if (data.manual) {
+                    // Manual destroy — play shatter effect
+                    shatterAndRedirect();
+                } else {
+                    // Timer expiry
+                    addSystemMessage('room destroyed — all data purged');
+                    inputEl.disabled = true;
+                    inputEl.placeholder = 'room expired';
+                }
+                break;
+        }
+    });
+
+    ws.addEventListener('close', (e) => {
+        if (e.code !== 4003) {
+            // Don't show "connection closed" if we're doing shatter animation
+            if (!chatContainer.classList.contains('shattering')) {
+                addSystemMessage('connection closed');
+                inputEl.disabled = true;
+            }
+        }
+    });
+
+    ws.addEventListener('error', () => {
+        addSystemMessage('⚠ connection error');
+    });
+}
+
+// ─── Hash password ───────────────────────────────────────────────────
+async function hashPassword(password) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password + ':offchat-salt-v1');
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = new Uint8Array(hashBuffer);
+    return Array.from(hashArray).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  SEND TEXT MESSAGE
+// ═══════════════════════════════════════════════════════════════════
+inputEl.addEventListener('input', sendTyping);
+
 inputEl.addEventListener('keydown', async (e) => {
     if (e.key !== 'Enter') return;
 
     const text = inputEl.value.trim();
-    if (!text || ws.readyState !== WebSocket.OPEN) return;
+    if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
 
     const { encrypted, iv } = await encrypt(cryptoKey, text);
 
@@ -121,18 +482,10 @@ inputEl.addEventListener('keydown', async (e) => {
     inputEl.value = '';
 });
 
-// ─── File Upload ─────────────────────────────────────────────────────
-fileBtn.addEventListener('click', () => {
-    if (ws.readyState !== WebSocket.OPEN) return;
-    fileInput.click();
-});
-
-fileInput.addEventListener('change', async () => {
-    const file = fileInput.files?.[0];
-    if (!file) return;
-
-    fileInput.value = '';
-
+// ═══════════════════════════════════════════════════════════════════
+//  FILE UPLOAD (shared by button and drag & drop)
+// ═══════════════════════════════════════════════════════════════════
+async function handleFileUpload(file) {
     if (file.size > MAX_FILE_SIZE) {
         showToast(`file too large — max ${MAX_FILE_SIZE / 1024 / 1024}MB`);
         return;
@@ -168,6 +521,18 @@ fileInput.addEventListener('change', async () => {
     } finally {
         fileBtn.classList.remove('uploading');
     }
+}
+
+fileBtn.addEventListener('click', () => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    fileInput.click();
+});
+
+fileInput.addEventListener('change', async () => {
+    const file = fileInput.files?.[0];
+    if (!file) return;
+    fileInput.value = '';
+    await handleFileUpload(file);
 });
 
 // ─── Copy Link ───────────────────────────────────────────────────────
@@ -182,7 +547,9 @@ copyLinkBtn.addEventListener('click', async () => {
     }
 });
 
-// ─── UI Helpers ──────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+//  UI HELPERS
+// ═══════════════════════════════════════════════════════════════════
 
 function clearEmptyState() {
     if (!hasMessages && emptyState) {
@@ -207,17 +574,20 @@ function getFileIcon(type) {
     return '📎';
 }
 
+function shouldAutoScroll() {
+    const threshold = 100;
+    return messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < threshold;
+}
+
 function addMessage(codename, text, timestamp, isSelf = false) {
     clearEmptyState();
+    const doScroll = shouldAutoScroll();
 
     const el = document.createElement('div');
     el.className = `message${isSelf ? ' self' : ''}`;
 
     const time = new Date(timestamp).toLocaleTimeString('en-US', {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
+        hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit',
     });
 
     const timeSpan = document.createElement('span');
@@ -234,20 +604,18 @@ function addMessage(codename, text, timestamp, isSelf = false) {
 
     el.append(timeSpan, nameSpan, textSpan);
     messagesEl.appendChild(el);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+    if (doScroll || isSelf) messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
 function addFileMessage(codename, meta, fileBuffer, timestamp, isSelf = false) {
     clearEmptyState();
+    const doScroll = shouldAutoScroll();
 
     const el = document.createElement('div');
     el.className = `message file-msg${isSelf ? ' self' : ''}`;
 
     const time = new Date(timestamp).toLocaleTimeString('en-US', {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
+        hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit',
     });
 
     const timeSpan = document.createElement('span');
@@ -308,11 +676,12 @@ function addFileMessage(codename, meta, fileBuffer, timestamp, isSelf = false) {
 
     el.append(timeSpan, nameSpan, card);
     messagesEl.appendChild(el);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+    if (doScroll || isSelf) messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
 function addSystemMessage(text) {
     clearEmptyState();
+    const doScroll = shouldAutoScroll();
 
     const el = document.createElement('div');
     el.className = 'message system';
@@ -323,7 +692,7 @@ function addSystemMessage(text) {
 
     el.appendChild(span);
     messagesEl.appendChild(el);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+    if (doScroll) messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
 function showToast(text) {
@@ -336,7 +705,6 @@ function showToast(text) {
 
     toast.textContent = text;
     toast.classList.add('show');
-
     setTimeout(() => toast.classList.remove('show'), 2000);
 }
 
@@ -368,3 +736,6 @@ function startTimer(expiresAt) {
 
     tick();
 }
+
+// ─── Start ───────────────────────────────────────────────────────────
+checkRoomAndConnect();

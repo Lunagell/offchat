@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,10 +10,13 @@
   <title>offchat</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="/css/style.css">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔒</text></svg>">
+  <link rel="icon"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔒</text></svg>">
 </head>
+
 <body data-page="landing">
 
   <!-- Ambient background -->
@@ -22,9 +26,9 @@
     <div class="landing__hero">
       <div class="logo-mark" aria-hidden="true">
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-          <rect x="2" y="2" width="28" height="28" rx="6" stroke="var(--accent)" stroke-width="1.5" opacity="0.6"/>
-          <circle cx="16" cy="14" r="4" stroke="var(--accent)" stroke-width="1.5"/>
-          <path d="M10 24c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round"/>
+          <rect x="2" y="2" width="28" height="28" rx="6" stroke="var(--accent)" stroke-width="1.5" opacity="0.6" />
+          <circle cx="16" cy="14" r="4" stroke="var(--accent)" stroke-width="1.5" />
+          <path d="M10 24c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" />
         </svg>
       </div>
 
@@ -38,32 +42,58 @@
     <div class="landing__input-wrapper">
       <div class="input-container" id="input-container">
         <span class="input-prefix">offchat/</span>
-        <input
-          type="text"
-          id="room-input"
-          class="input-room"
-          placeholder="room_name"
-          autocomplete="off"
-          autocorrect="off"
-          autocapitalize="off"
-          spellcheck="false"
-          maxlength="48"
-          autofocus
-        >
+        <input type="text" id="room-input" class="input-room" placeholder="room_name" autocomplete="off"
+          autocorrect="off" autocapitalize="off" spellcheck="false" maxlength="48" autofocus>
         <button id="go-btn" class="btn-go" aria-label="Create room" disabled>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+              stroke-linejoin="round" />
           </svg>
         </button>
       </div>
+
+      <!-- Password field (optional) -->
+      <div class="password-container" id="password-container">
+        <button id="password-toggle" class="password-toggle" type="button">
+          <svg class="lock-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <rect x="2.5" y="6.5" width="9" height="6" rx="1.5" stroke="currentColor" stroke-width="1.2" />
+            <path d="M4.5 6.5V5a2.5 2.5 0 015 0v1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
+          </svg>
+          <span id="password-toggle-text">add password</span>
+        </button>
+        <div class="password-field" id="password-field" hidden>
+          <input type="password" id="password-input" class="input-password" placeholder="room password"
+            autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" maxlength="128">
+          <button id="password-visibility" class="btn-eye" type="button" aria-label="Toggle password visibility">
+            <svg id="eye-open" width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z" stroke="currentColor" stroke-width="1.2"
+                stroke-linecap="round" stroke-linejoin="round" />
+              <circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.2" />
+            </svg>
+            <svg id="eye-closed" width="16" height="16" viewBox="0 0 16 16" fill="none" hidden>
+              <path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z" stroke="currentColor" stroke-width="1.2"
+                stroke-linecap="round" stroke-linejoin="round" />
+              <circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.2" />
+              <path d="M2 2l12 12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Duration selector -->
+      <div class="duration-selector">
+        <span class="duration-label">room duration</span>
+        <div class="duration-buttons">
+          <button class="duration-btn active" data-duration="10">10 min</button>
+          <button class="duration-btn" data-duration="15">15 min</button>
+          <button class="duration-btn" data-duration="30">30 min</button>
+        </div>
+      </div>
+
       <p class="input-hint">press <kbd>enter</kbd> to create encrypted room</p>
     </div>
 
     <footer class="landing__footer">
-      <div class="footer-info">
-        <span class="blink-dot"></span>
-        <span>rooms self-destruct in <strong>10 min</strong></span>
-      </div>
       <div class="footer-badges">
         <span class="badge">AES-256-GCM</span>
         <span class="badge">E2E</span>
@@ -74,4 +104,5 @@
 
   <script type="module" src="/js/landing.js"></script>
 </body>
+
 </html>

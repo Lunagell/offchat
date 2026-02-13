@@ -1,24 +1,28 @@
 /* ═══════════════════════════════════════════════════════════════════
    offchat — E2E Encryption Module
    AES-256-GCM via Web Crypto API
-   Key derived from room name — NEVER touches the server.
+   Key derived from room name + optional password — NEVER touches the server.
    ═══════════════════════════════════════════════════════════════════ */
 
 const SALT = 'offchat-e2e-v1'; // fixed salt for key derivation
 const ITERATIONS = 100_000;
 
 /**
- * Derive AES-256-GCM key from room name using PBKDF2
- * Same room name → same key (both sides can encrypt/decrypt)
+ * Derive AES-256-GCM key from room name + optional password using PBKDF2
+ * Same room name + password → same key (both sides can encrypt/decrypt)
  * @param {string} roomName
+ * @param {string} [password='']
  * @returns {Promise<CryptoKey>}
  */
-export async function deriveKey(roomName) {
+export async function deriveKey(roomName, password = '') {
     const encoder = new TextEncoder();
+
+    // Combine room name and password for key material
+    const keySource = password ? `${roomName}:${password}` : roomName;
 
     const keyMaterial = await crypto.subtle.importKey(
         'raw',
-        encoder.encode(roomName),
+        encoder.encode(keySource),
         'PBKDF2',
         false,
         ['deriveKey'],

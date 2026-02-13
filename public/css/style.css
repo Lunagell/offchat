@@ -108,7 +108,6 @@ a {
   z-index: 0;
 }
 
-/* subtle vignette */
 .ambient-grid::after {
   content: '';
   position: absolute;
@@ -127,8 +126,9 @@ a {
   align-items: center;
   justify-content: center;
   height: 100%;
-  gap: 40px;
+  gap: 28px;
   padding: 24px;
+  overflow-y: auto;
 }
 
 /* ─── Hero / Logo ─────────────────────────────────────────────────── */
@@ -136,7 +136,7 @@ a {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   animation: fadeInUp 0.6s ease-out;
 }
 
@@ -146,7 +146,7 @@ a {
 }
 
 .logo {
-  font-size: clamp(3.2rem, 10vw, 5rem);
+  font-size: clamp(2.8rem, 10vw, 5rem);
   font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1;
@@ -164,11 +164,12 @@ a {
 }
 
 .tagline {
-  font-size: 1rem;
+  font-size: clamp(0.7rem, 2.5vw, 1rem);
   font-weight: 300;
   color: var(--text-muted);
-  letter-spacing: 0.15em;
+  letter-spacing: 0.1em;
   text-transform: lowercase;
+  white-space: nowrap;
 }
 
 /* ─── Input Area ──────────────────────────────────────────────────── */
@@ -176,7 +177,7 @@ a {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
   width: 100%;
   max-width: 540px;
   animation: fadeInUp 0.6s ease-out 0.1s both;
@@ -189,8 +190,8 @@ a {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 0 6px 0 20px;
-  height: 64px;
+  padding: 0 6px 0 16px;
+  height: 56px;
   transition:
     border-color var(--transition),
     box-shadow var(--transition);
@@ -209,6 +210,7 @@ a {
   font-weight: 400;
   white-space: nowrap;
   flex-shrink: 0;
+  font-size: 0.95rem;
 }
 
 .input-room {
@@ -218,6 +220,7 @@ a {
   font-weight: 500;
   caret-color: var(--accent);
   min-width: 0;
+  font-size: 0.95rem;
 }
 
 .input-room::placeholder {
@@ -229,8 +232,8 @@ a {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
   border-radius: 8px;
   color: var(--text-dim);
   cursor: pointer;
@@ -248,8 +251,159 @@ a {
   cursor: default;
 }
 
-.input-hint {
+/* ─── Password Toggle & Field (Landing) ───────────────────────────── */
+.password-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.password-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 400;
+  cursor: pointer;
+  transition: all var(--transition);
+  border: 1px solid transparent;
+}
+
+.password-toggle:hover {
+  color: var(--accent);
+  background: var(--accent-ghost);
+}
+
+.password-toggle.active {
+  color: var(--accent);
+  background: var(--accent-ghost);
+  border-color: rgba(0, 255, 163, 0.1);
+}
+
+.password-toggle .lock-icon {
+  flex-shrink: 0;
+}
+
+.password-field {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0 8px 0 16px;
+  height: 50px;
+  transition:
+    border-color var(--transition),
+    box-shadow var(--transition);
+  animation: fadeInUp 0.3s ease-out;
+}
+
+.password-field:focus-within {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 1px var(--accent-dim),
+    0 0 20px var(--accent-ghost);
+}
+
+.password-field[hidden] {
+  display: none;
+}
+
+.input-password {
+  flex: 1;
+  height: 100%;
+  color: var(--text-bright);
+  font-weight: 400;
+  font-size: 0.9rem;
+  caret-color: var(--accent);
+  min-width: 0;
+  letter-spacing: 0.05em;
+}
+
+.input-password::placeholder {
+  color: var(--text-dim);
+  font-weight: 300;
+  letter-spacing: 0;
+}
+
+.btn-eye {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition);
+  flex-shrink: 0;
+}
+
+.btn-eye:hover {
+  color: var(--accent);
+  background: var(--accent-ghost);
+}
+
+/* ─── Duration Selector ───────────────────────────────────────────── */
+.duration-selector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.duration-label {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  letter-spacing: 0.08em;
+  text-transform: lowercase;
+}
+
+.duration-buttons {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  max-width: 320px;
+}
+
+.duration-btn {
+  flex: 1;
+  padding: 10px 0;
   font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all var(--transition);
+  text-align: center;
+  letter-spacing: 0.02em;
+}
+
+.duration-btn:hover {
+  color: var(--accent);
+  border-color: var(--border-focus);
+  background: var(--surface-hover);
+}
+
+.duration-btn.active {
+  color: var(--accent);
+  background: var(--accent-dim);
+  border-color: rgba(0, 255, 163, 0.2);
+  box-shadow: 0 0 12px rgba(0, 255, 163, 0.06);
+}
+
+/* ─── Hint ────────────────────────────────────────────────────────── */
+.input-hint {
+  font-size: 0.78rem;
   color: var(--text-dim);
   letter-spacing: 0.04em;
 }
@@ -261,7 +415,7 @@ a {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   font-family: inherit;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: var(--text-muted);
 }
 
@@ -274,42 +428,173 @@ a {
   animation: fadeInUp 0.6s ease-out 0.2s both;
 }
 
-.footer-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 0.95rem;
-  color: var(--text-muted);
-}
-
-.footer-info strong {
-  color: var(--text);
-  font-weight: 500;
-}
-
-.blink-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--accent);
-  animation: blink 2s ease-in-out infinite;
-  box-shadow: 0 0 8px var(--accent-glow);
-}
-
 .footer-badges {
   display: flex;
   gap: 8px;
 }
 
 .badge {
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 500;
   letter-spacing: 0.06em;
-  padding: 5px 12px;
+  padding: 4px 10px;
   border-radius: var(--radius-sm);
   background: var(--accent-ghost);
   color: var(--accent);
   border: 1px solid rgba(0, 255, 163, 0.08);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PASSWORD MODAL (Chat Page)
+   ═══════════════════════════════════════════════════════════════════ */
+.password-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.password-modal[hidden] {
+  display: none;
+}
+
+.password-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(6, 6, 8, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.password-modal__card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  max-width: 420px;
+  width: 100%;
+  padding: 48px 40px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow:
+    0 0 0 1px rgba(0, 255, 163, 0.04),
+    0 24px 80px rgba(0, 0, 0, 0.6),
+    0 0 60px rgba(0, 255, 163, 0.03);
+  animation: modalIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.password-modal__icon {
+  opacity: 0.6;
+}
+
+.password-modal__title {
+  font-size: 1.2rem;
+  font-weight: 500;
+  color: var(--text-bright);
+  text-align: center;
+}
+
+.password-modal__desc {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.5;
+  margin-top: -8px;
+}
+
+.password-modal__input-wrap {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0 8px 0 20px;
+  height: 56px;
+  transition:
+    border-color var(--transition),
+    box-shadow var(--transition);
+}
+
+.password-modal__input-wrap:focus-within {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 1px var(--accent-dim),
+    0 0 20px var(--accent-ghost);
+}
+
+.password-modal__input {
+  flex: 1;
+  height: 100%;
+  color: var(--text-bright);
+  font-weight: 400;
+  font-size: 0.95rem;
+  caret-color: var(--accent);
+  min-width: 0;
+  letter-spacing: 0.05em;
+  background: none;
+  border: none;
+  outline: none;
+  font-family: inherit;
+}
+
+.password-modal__input::placeholder {
+  color: var(--text-dim);
+  font-weight: 300;
+  letter-spacing: 0;
+}
+
+.password-modal__error {
+  font-size: 0.85rem;
+  color: var(--danger);
+  text-align: center;
+  padding: 8px 16px;
+  background: var(--danger-dim);
+  border-radius: var(--radius-sm);
+  width: 100%;
+  animation: fadeInUp 0.2s ease-out;
+}
+
+.password-modal__error[hidden] {
+  display: none;
+}
+
+.password-modal__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  height: 50px;
+  background: var(--accent-dim);
+  border: 1px solid rgba(0, 255, 163, 0.15);
+  border-radius: var(--radius);
+  color: var(--accent);
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.password-modal__btn:hover {
+  background: rgba(0, 255, 163, 0.18);
+  border-color: rgba(0, 255, 163, 0.3);
+  box-shadow: 0 0 20px rgba(0, 255, 163, 0.1);
+}
+
+.password-modal__back {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  transition: color var(--transition);
+}
+
+.password-modal__back:hover {
+  color: var(--text-muted);
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -321,6 +606,7 @@ a {
   display: flex;
   flex-direction: column;
   height: 100%;
+  transition: filter 0.3s ease;
 }
 
 /* ─── Chat Header ─────────────────────────────────────────────────── */
@@ -341,11 +627,11 @@ a {
 .header-right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .logo-sm {
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 500;
   color: var(--text-muted);
 }
@@ -366,7 +652,21 @@ a {
 .room-id {
   color: var(--text);
   font-weight: 400;
-  font-size: 1.05rem;
+  font-size: 1rem;
+}
+
+/* Lock indicator */
+.lock-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  opacity: 0.6;
+  animation: fadeInUp 0.3s ease-out;
+}
+
+.lock-indicator[hidden] {
+  display: none;
 }
 
 .btn-icon {
@@ -393,8 +693,8 @@ a {
 .header-meta {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 1rem;
+  gap: 8px;
+  font-size: 0.95rem;
 }
 
 .presence {
@@ -417,7 +717,7 @@ a {
   color: var(--text-muted);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
-  font-size: 1rem;
+  font-size: 0.95rem;
 }
 
 .timer.warning {
@@ -433,11 +733,11 @@ a {
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 500;
   color: var(--accent);
   opacity: 0.6;
-  padding: 4px 10px;
+  padding: 4px 8px;
   border-radius: var(--radius-sm);
   background: var(--accent-ghost);
 }
@@ -447,7 +747,7 @@ a {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 24px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -460,13 +760,13 @@ a {
   justify-content: center;
   flex: 1;
   gap: 8px;
-  font-size: 1rem;
+  font-size: 0.95rem;
   color: var(--text-dim);
   text-align: center;
 }
 
 .messages__empty .dim {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   opacity: 0.5;
 }
 
@@ -474,15 +774,15 @@ a {
 .message {
   display: flex;
   align-items: baseline;
-  gap: 12px;
-  padding: 5px 0;
-  font-size: 1.05rem;
+  gap: 10px;
+  padding: 4px 0;
+  font-size: 1rem;
   animation: msgIn 0.2s ease-out;
 }
 
 .msg-time {
   color: var(--text-dim);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
 }
@@ -491,7 +791,7 @@ a {
   color: var(--accent);
   font-weight: 500;
   flex-shrink: 0;
-  font-size: 1rem;
+  font-size: 0.9rem;
 }
 
 .msg-name.self {
@@ -512,8 +812,8 @@ a {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  min-width: 220px;
-  max-width: 400px;
+  min-width: 200px;
+  max-width: 360px;
   flex-wrap: wrap;
   transition: border-color var(--transition);
 }
@@ -523,7 +823,7 @@ a {
 }
 
 .file-icon {
-  font-size: 1.5rem;
+  font-size: 1.4rem;
   flex-shrink: 0;
 }
 
@@ -537,7 +837,7 @@ a {
 
 .file-name {
   color: var(--text-bright);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
@@ -546,7 +846,7 @@ a {
 
 .file-size {
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: 0.7rem;
 }
 
 .file-download {
@@ -599,7 +899,7 @@ a {
 
 .msg-system {
   color: var(--text-dim);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-style: italic;
 }
 
@@ -607,8 +907,8 @@ a {
 .chat-footer {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 18px 24px;
+  gap: 10px;
+  padding: 14px 20px;
   border-top: 1px solid var(--border);
   background: rgba(6, 6, 8, 0.85);
   backdrop-filter: blur(12px);
@@ -619,7 +919,7 @@ a {
 .my-codename {
   color: var(--accent);
   font-weight: 500;
-  font-size: 1rem;
+  font-size: 0.9rem;
   flex-shrink: 0;
   opacity: 0.7;
 }
@@ -637,6 +937,7 @@ a {
   caret-color: var(--accent);
   font-weight: 400;
   min-width: 0;
+  font-size: 0.95rem;
 }
 
 .msg-input::placeholder {
@@ -766,53 +1067,341 @@ a {
   }
 }
 
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes shake {
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  20% {
+    transform: translateX(-8px);
+  }
+
+  40% {
+    transform: translateX(8px);
+  }
+
+  60% {
+    transform: translateX(-6px);
+  }
+
+  80% {
+    transform: translateX(6px);
+  }
+}
+
+.password-modal__card.shake {
+  animation: shake 0.5s ease-in-out;
+}
+
 /* ═══════════════════════════════════════════════════════════════════
-   RESPONSIVE
+   RESPONSIVE — MOBILE
    ═══════════════════════════════════════════════════════════════════ */
-@media (max-width: 480px) {
+@media (max-width: 600px) {
+
+  html,
+  body {
+    font-size: 15px;
+  }
+
+  /* ── Landing ─────────────────── */
   .landing {
-    gap: 32px;
+    gap: 20px;
     padding: 20px 16px;
+    justify-content: center;
+  }
+
+  .landing__hero {
+    gap: 8px;
+  }
+
+  .logo-mark {
+    margin-bottom: 0;
+  }
+
+  .logo-mark svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .logo {
+    font-size: 2.8rem;
+  }
+
+  .tagline {
+    font-size: 0.62rem;
+    letter-spacing: 0.04em;
+  }
+
+  .landing__input-wrapper {
+    gap: 12px;
   }
 
   .input-container {
-    height: 44px;
-    padding: 0 4px 0 12px;
+    height: 50px;
+    padding: 0 4px 0 14px;
   }
 
+  .input-prefix {
+    font-size: 0.85rem;
+  }
+
+  .input-room {
+    font-size: 0.85rem;
+  }
+
+  .btn-go {
+    width: 40px;
+    height: 40px;
+  }
+
+  .password-toggle {
+    font-size: 0.78rem;
+    padding: 6px 12px;
+  }
+
+  .password-field {
+    height: 46px;
+    padding: 0 6px 0 14px;
+  }
+
+  .input-password {
+    font-size: 0.85rem;
+  }
+
+  .btn-eye {
+    width: 36px;
+    height: 36px;
+  }
+
+  .duration-selector {
+    gap: 8px;
+  }
+
+  .duration-label {
+    font-size: 0.72rem;
+  }
+
+  .duration-buttons {
+    max-width: 280px;
+    gap: 6px;
+  }
+
+  .duration-btn {
+    padding: 8px 0;
+    font-size: 0.78rem;
+  }
+
+  .input-hint {
+    font-size: 0.72rem;
+  }
+
+  .input-hint kbd {
+    font-size: 0.68rem;
+    padding: 1px 6px;
+  }
+
+  .footer-badges {
+    gap: 6px;
+  }
+
+  .badge {
+    font-size: 0.65rem;
+    padding: 3px 8px;
+  }
+
+  /* ── Chat ─────────────────── */
   .chat-header {
     padding: 0 12px;
+    height: 50px;
+    gap: 6px;
+  }
+
+  .header-left,
+  .header-right {
+    gap: 6px;
+  }
+
+  .logo-sm {
+    font-size: 0.85rem;
+  }
+
+  .room-id {
+    font-size: 0.85rem;
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .btn-icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .header-meta {
+    gap: 6px;
+    font-size: 0.8rem;
+  }
+
+  .timer {
+    font-size: 0.8rem;
+  }
+
+  .encryption-badge {
+    font-size: 0.65rem;
+    padding: 3px 6px;
+    gap: 3px;
+  }
+
+  .encryption-badge span {
+    display: none;
   }
 
   .messages {
     padding: 12px;
   }
 
+  .message {
+    gap: 8px;
+    font-size: 0.9rem;
+  }
+
+  .msg-time {
+    font-size: 0.7rem;
+  }
+
+  .msg-name {
+    font-size: 0.8rem;
+  }
+
+  .msg-system {
+    font-size: 0.78rem;
+  }
+
   .chat-footer {
-    padding: 10px 12px;
+    padding: 12px;
+    gap: 8px;
   }
 
-  .footer-badges {
-    flex-wrap: wrap;
-    justify-content: center;
+  .my-codename {
+    font-size: 0.8rem;
   }
 
-  .encryption-badge span {
-    display: none;
+  .msg-input {
+    font-size: 0.85rem;
+  }
+
+  .file-card {
+    min-width: 180px;
+    max-width: 280px;
+    padding: 8px 10px;
+    gap: 8px;
+  }
+
+  .file-name {
+    font-size: 0.78rem;
+  }
+
+  .file-size {
+    font-size: 0.65rem;
+  }
+
+  .file-download {
+    width: 30px;
+    height: 30px;
+  }
+
+  /* ── Password Modal ──────── */
+  .password-modal {
+    padding: 16px;
+  }
+
+  .password-modal__card {
+    padding: 32px 24px;
+    gap: 16px;
+  }
+
+  .password-modal__title {
+    font-size: 1.05rem;
+  }
+
+  .password-modal__desc {
+    font-size: 0.8rem;
+  }
+
+  .password-modal__input-wrap {
+    height: 48px;
+    padding: 0 6px 0 14px;
+  }
+
+  .password-modal__input {
+    font-size: 0.85rem;
+  }
+
+  .password-modal__btn {
+    height: 44px;
+    font-size: 0.85rem;
+  }
+}
+
+/* Extra small screens (< 360px) */
+@media (max-width: 360px) {
+  .landing {
+    gap: 16px;
+    padding: 16px 12px;
+  }
+
+  .logo {
+    font-size: 2.4rem;
+  }
+
+  .tagline {
+    font-size: 0.6rem;
+  }
+
+  .input-container {
+    height: 46px;
+  }
+
+  .duration-buttons {
+    max-width: 240px;
+  }
+
+  .duration-btn {
+    padding: 7px 0;
+    font-size: 0.72rem;
+  }
+
+  .room-id {
+    max-width: 70px;
   }
 }
 
 /* ─── Toast Notification ──────────────────────────────────────────── */
 .toast {
   position: fixed;
-  bottom: 90px;
+  bottom: 80px;
   left: 50%;
   transform: translateX(-50%) translateY(8px);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 12px 24px;
-  font-size: 0.95rem;
+  padding: 10px 20px;
+  font-size: 0.85rem;
   color: var(--accent);
   opacity: 0;
   pointer-events: none;
@@ -820,6 +1409,7 @@ a {
   transition:
     opacity 0.2s ease,
     transform 0.2s ease;
+  white-space: nowrap;
 }
 
 .toast.show {

@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { join, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
+import QRCode from 'qrcode';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const PORT = process.env.PORT || 3000;
@@ -18,17 +19,23 @@ const CODENAMES = [
   'Storm', 'Frost', 'Blaze', 'Shard', 'Vertex', 'Helix', 'Prism',
 ];
 
-const ROOM_TTL = 10 * 60 * 1000; // 10 minutes
+const ALLOWED_TTL = [10, 15, 30];
+const DEFAULT_TTL = 10;
 
 // ─── Room Management ─────────────────────────────────────────────────
-function getRoom(name) {
+function getRoom(name, passwordHash = null, ttlMinutes = DEFAULT_TTL) {
   if (!rooms.has(name)) {
+    const ttl = ALLOWED_TTL.includes(ttlMinutes) ? ttlMinutes : DEFAULT_TTL;
+    const ttlMs = ttl * 60 * 1000;
+
     rooms.set(name, {
       name,
       clients: new Map(),
       createdAt: Date.now(),
-      timer: setTimeout(() => destroyRoom(name), ROOM_TTL),
+      ttlMs,
+      timer: setTimeout(() => destroyRoom(name), ttlMs),
       usedCodenames: new Set(),
+      passwordHash,
     });
   }
   return rooms.get(name);
@@ -39,12 +46,36 @@ function destroyRoom(name) {
   if (!room) return;
 
   for (const [ws] of room.clients) {
-    ws.send(JSON.stringify({ type: 'destroyed' }));
+    try { ws.send(JSON.stringify({ type: 'destroyed' })); } catch { }
     ws.close();
   }
 
   clearTimeout(room.timer);
   rooms.delete(name);
+}
+
+function manualDestroyRoom(name) {
+  const room = rooms.get(name);
+  if (!room) return;
+
+  // Broadcast manual destroy — clients will play shatter effect
+  const msg = JSON.stringify({ type: 'destroyed', manual: true });
+  for (const [ws] of room.clients) {
+    try { ws.send(msg); } catch { }
+  }
+
+  clearTimeout(room.timer);
+
+  // Give clients time to receive the message, then clean up
+  setTimeout(() => {
+    const r = rooms.get(name);
+    if (r) {
+      for (const [ws] of r.clients) {
+        ws.close();
+      }
+      rooms.delete(name);
+    }
+  }, 2500);
 }
 
 function assignCodename(room) {
@@ -101,6 +132,66 @@ const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   setSecurityHeaders(res);
 
+  // ─── API: room info ──────────────────────────────────────────────
+  if (url.pathname === '/api/room-info') {
+    const roomName = url.searchParams.get('room');
+    res.setHeader('Content-Type', 'application/json');
+
+    if (!roomName) {
+      res.writeHead(400);
+      res.end(JSON.stringify({ error: 'missing room name' }));
+      return;
+    }
+
+    const room = rooms.get(roomName);
+    if (!room) {
+      res.writeHead(200);
+      res.end(JSON.stringify({ exists: false, hasPassword: false }));
+      return;
+    }
+
+    res.writeHead(200);
+    res.end(JSON.stringify({
+      exists: true,
+      hasPassword: !!room.passwordHash,
+      participants: room.clients.size,
+    }));
+    return;
+  }
+
+  // ─── API: QR code ────────────────────────────────────────────────
+  if (url.pathname === '/api/qr') {
+    const roomName = url.searchParams.get('room');
+    if (!roomName) {
+      res.writeHead(400, { 'Content-Type': 'text/plain' });
+      res.end('missing room');
+      return;
+    }
+
+    try {
+      const proto = req.headers['x-forwarded-proto'] || 'http';
+      const host = req.headers.host;
+      const roomUrl = `${proto}://${host}/${encodeURIComponent(roomName)}`;
+
+      const svg = await QRCode.toString(roomUrl, {
+        type: 'svg',
+        margin: 2,
+        width: 220,
+        color: {
+          dark: '#00ffa3',
+          light: '#00000000', // transparent
+        },
+      });
+
+      res.writeHead(200, { 'Content-Type': 'image/svg+xml' });
+      res.end(svg);
+    } catch {
+      res.writeHead(500, { 'Content-Type': 'text/plain' });
+      res.end('qr generation failed');
+    }
+    return;
+  }
+
   let filePath;
 
   if (url.pathname === '/') {
@@ -111,7 +202,6 @@ const server = createServer(async (req, res) => {
   ) {
     filePath = join(__dirname, 'public', url.pathname);
   } else {
-    // Any other path → serve chat room
     filePath = join(__dirname, 'public', 'chat.html');
   }
 
@@ -127,46 +217,59 @@ const server = createServer(async (req, res) => {
 });
 
 // ─── WebSocket Server ────────────────────────────────────────────────
-const MAX_PAYLOAD = 50 * 1024 * 1024; // 50MB for file transfers
+const MAX_PAYLOAD = 50 * 1024 * 1024;
 const wss = new WebSocketServer({ server, maxPayload: MAX_PAYLOAD });
 
 wss.on('connection', (ws, req) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const roomName = url.searchParams.get('room');
+  const hasPassword = url.searchParams.get('hasPassword') === '1';
+  const pwdHash = url.searchParams.get('pwdHash') || '';
+  const ttl = parseInt(url.searchParams.get('ttl') || String(DEFAULT_TTL), 10);
 
   if (!roomName || roomName.length > 64) {
     ws.close(4001, 'invalid room');
     return;
   }
 
-  const room = getRoom(roomName);
+  const existingRoom = rooms.get(roomName);
+
+  if (existingRoom) {
+    if (existingRoom.passwordHash) {
+      if (!pwdHash || pwdHash !== existingRoom.passwordHash) {
+        ws.send(JSON.stringify({ type: 'auth_error', message: 'wrong password' }));
+        ws.close(4003, 'auth failed');
+        return;
+      }
+    }
+  }
+
+  const room = existingRoom || getRoom(roomName, hasPassword ? pwdHash : null, ttl);
+
   const codename = assignCodename(room);
   room.clients.set(ws, codename);
 
-  // Send init
   ws.send(JSON.stringify({
     type: 'init',
     codename,
     participants: room.clients.size,
-    expiresAt: room.createdAt + ROOM_TTL,
+    expiresAt: room.createdAt + room.ttlMs,
     createdAt: room.createdAt,
+    hasPassword: !!room.passwordHash,
   }));
 
-  // Broadcast join
   broadcast(room, {
     type: 'join',
     codename,
     participants: room.clients.size,
   }, ws);
 
-  // Handle messages
   ws.on('message', (raw) => {
     try {
       const msg = JSON.parse(raw);
 
       if (msg.type === 'message') {
         if (!msg.encrypted || !msg.iv) return;
-        // Relay encrypted text — server CANNOT read this
         broadcast(room, {
           type: 'message',
           codename,
@@ -174,9 +277,9 @@ wss.on('connection', (ws, req) => {
           iv: msg.iv,
           timestamp: Date.now(),
         }, ws);
+
       } else if (msg.type === 'file') {
         if (!msg.data || !msg.dataIv || !msg.meta || !msg.metaIv) return;
-        // Relay encrypted file — server sees NOTHING
         broadcast(room, {
           type: 'file',
           codename,
@@ -186,13 +289,18 @@ wss.on('connection', (ws, req) => {
           metaIv: msg.metaIv,
           timestamp: Date.now(),
         }, ws);
+
+      } else if (msg.type === 'typing') {
+        broadcast(room, { type: 'typing', codename }, ws);
+
+      } else if (msg.type === 'destroy') {
+        manualDestroyRoom(roomName);
       }
     } catch {
-      // silently drop malformed messages
+      // silently drop malformed
     }
   });
 
-  // Handle disconnect
   ws.on('close', () => {
     room.clients.delete(ws);
     room.usedCodenames.delete(codename);
