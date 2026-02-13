@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Ephemeral encrypted chat. No logs. No traces.">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#060608">
+  <title>offchat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔒</text></svg>">
+</head>
+<body data-page="landing">
+
+  <!-- Ambient background -->
+  <div class="ambient-grid" aria-hidden="true"></div>
+
+  <main class="landing">
+    <div class="landing__hero">
+      <div class="logo-mark" aria-hidden="true">
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+          <rect x="2" y="2" width="28" height="28" rx="6" stroke="var(--accent)" stroke-width="1.5" opacity="0.6"/>
+          <circle cx="16" cy="14" r="4" stroke="var(--accent)" stroke-width="1.5"/>
+          <path d="M10 24c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+
+      <h1 class="logo">
+        <span class="logo__off">off</span><span class="logo__chat">chat</span>
+      </h1>
+
+      <p class="tagline">ephemeral · encrypted · zero-trace</p>
+    </div>
+
+    <div class="landing__input-wrapper">
+      <div class="input-container" id="input-container">
+        <span class="input-prefix">offchat/</span>
+        <input
+          type="text"
+          id="room-input"
+          class="input-room"
+          placeholder="room_name"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck="false"
+          maxlength="48"
+          autofocus
+        >
+        <button id="go-btn" class="btn-go" aria-label="Create room" disabled>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+      <p class="input-hint">press <kbd>enter</kbd> to create encrypted room</p>
+    </div>
+
+    <footer class="landing__footer">
+      <div class="footer-info">
+        <span class="blink-dot"></span>
+        <span>rooms self-destruct in <strong>10 min</strong></span>
+      </div>
+      <div class="footer-badges">
+        <span class="badge">AES-256-GCM</span>
+        <span class="badge">E2E</span>
+        <span class="badge">Zero-Log</span>
+      </div>
+    </footer>
+  </main>
+
+  <script type="module" src="/js/landing.js"></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "offchat",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Ephemeral encrypted chat. No logs. No traces.",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
